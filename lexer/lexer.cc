@@ -122,6 +122,7 @@ bool Lexer::getToken(Token &tok)
 
     // Read a line
     std::string line;
+GETLINE:
     getline(code, line);
 
     // Return if EOF
@@ -135,17 +136,7 @@ bool Lexer::getToken(Token &tok)
     parseLine(line);
 
     // Skip empty lines
-    while (toks_per_line.size() == 0)
-    {
-        getline(code, line);
-        if (code.eof())
-        {
-            tok = Token(Token::TokenType::TOKEN_EOF);
-            return false;
-        }
-
-        parseLine(line);
-    }
+    if(toks_per_line.size() == 0) goto GETLINE;
 
     assert(toks_per_line.size() != 0);
     // std::cout << "\n" << line << "\n";
@@ -159,6 +150,8 @@ void Lexer::parseLine(std::string &line)
     std::shared_ptr<std::string> cur_line = 
         std::make_shared<std::string>(line);
 
+    Token::TokenType prev_tok = Token::TokenType::TOKEN_ILLEGAL;
+
     // Extract all the tokens from the current line
     for (auto iter = line.begin(); iter != line.end(); iter++)
     {
@@ -170,12 +163,47 @@ void Lexer::parseLine(std::string &line)
         std::string cur_token_str(1, *iter);
 
         // (2) is it a sep?
-        if (auto sep_iter = seps.find(*iter); 
-            sep_iter != seps.end())
+        if (auto sep_iter = seps.find(*iter); sep_iter != seps.end())
         {
             std::string literal = cur_token_str;
             Token::TokenType type = sep_iter->second;
             Token _tok(type, literal, cur_line);
+
+            if(_tok.isTokenPlus() || _tok.isTokenMinus())
+            {
+                auto prev = findPrevNonEmptyChar(iter, line.begin());
+            
+                // If context indicates unary
+                if(prev == line.begin())
+                {
+                    if(iter == line.begin() ||
+                        *prev == ' ' ||
+                        *prev == '\t'
+                      )
+                    {
+                        prev_tok = _tok.type;   
+                        continue;
+                    }
+                }
+                switch(*prev)
+                {
+                case ',':
+                case '+':
+                case '-':
+                case '*':
+                case '/':
+                case '(':
+                case '[':
+                case '<':
+                case '>':
+                case '=':
+                    prev_tok = _tok.type;   
+                    continue;
+                    break;
+                default:
+                    break;
+                }
+            }
 
             toks_per_line.push(_tok);
                 
@@ -199,6 +227,20 @@ void Lexer::parseLine(std::string &line)
 
         if (isType<int>(cur_token_str))
         {
+            switch(prev_tok)
+            {
+            case Token::TokenType::TOKEN_MINUS:
+                // Insert minus sign to string
+                cur_token_str.insert(0, "-");
+            case Token::TokenType::TOKEN_PLUS:
+                // No need to change for + unary
+                // Reset context token
+                prev_tok = Token::TokenType::TOKEN_ILLEGAL;
+            case Token::TokenType::TOKEN_ILLEGAL:
+            default:
+                break;
+            }
+
             Token::TokenType type = Token::TokenType::TOKEN_INT;
             Token _tok(type, cur_token_str, cur_line);
             toks_per_line.push(_tok);
@@ -206,6 +248,20 @@ void Lexer::parseLine(std::string &line)
         }
         else if (isType<float>(cur_token_str))
         {
+            switch(prev_tok)
+            {
+            case Token::TokenType::TOKEN_MINUS:
+                // Insert minus sign to string
+                cur_token_str.insert(0, "-");
+            case Token::TokenType::TOKEN_PLUS:
+                // No need to change for + unary
+                // Reset context token
+                prev_tok = Token::TokenType::TOKEN_ILLEGAL;
+            case Token::TokenType::TOKEN_ILLEGAL:
+            default:
+                break;
+            }
+
             Token::TokenType type = Token::TokenType::TOKEN_FLOAT;
             Token _tok(type, cur_token_str, cur_line);
             toks_per_line.push(_tok);
