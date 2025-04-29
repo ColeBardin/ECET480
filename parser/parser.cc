@@ -705,6 +705,46 @@ std::unique_ptr<Expression> Parser::parseFactor()
         advanceTokens();
         return left;
     }
+
+    // Unary operator
+    if (cur_token.isTokenMinus() || cur_token.isTokenPlus())
+    {
+        Expression::ExpressionType type = (cur_token.isTokenMinus() ? 
+                                            Expression::ExpressionType::MINUS :
+                                            Expression::ExpressionType::PLUS
+                                            );
+        Token zero_tok;
+        if(cur_expr_type == ValueType::Type::INT)
+        {
+            std::string zero_int_str = "0";
+            zero_tok = Token(Token::TokenType::TOKEN_INT, zero_int_str);
+        }
+        else
+        {
+            std::string zero_flt_str = "0.0";
+            zero_tok = Token(Token::TokenType::TOKEN_FLOAT, zero_flt_str);
+        }
+
+        std::unique_ptr<Expression> zero = std::make_unique<LiteralExpression>(zero_tok);
+        advanceTokens();
+
+        std::unique_ptr<Expression> right;
+        if(cur_token.isTokenInt() || cur_token.isTokenFloat())
+        {
+
+            bool is_index = (next_token.isTokenLBracket()) ?
+                            true : false;
+
+            strictTypeCheck(cur_token, is_index);
+            right = std::make_unique<LiteralExpression>(cur_token);
+            advanceTokens();
+        }
+        else right = parseFactor();
+
+        std::unique_ptr<Expression> unary = std::make_unique<ArithExpression>(zero, right, type);
+
+        return unary;
+    }
     
     // TODO - add deref in the future
     bool is_index = (next_token.isTokenLBracket()) ?

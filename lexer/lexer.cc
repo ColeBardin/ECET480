@@ -151,6 +151,7 @@ void Lexer::parseLine(std::string &line)
         std::make_shared<std::string>(line);
 
     Token::TokenType prev_tok = Token::TokenType::TOKEN_ILLEGAL;
+    int multiplier = 1;
 
     // Extract all the tokens from the current line
     for (auto iter = line.begin(); iter != line.end(); iter++)
@@ -182,6 +183,7 @@ void Lexer::parseLine(std::string &line)
                       )
                     {
                         prev_tok = _tok.type;   
+                        multiplier *= (_tok.isTokenPlus() ? 1 : -1);
                         continue;
                     }
                 }
@@ -198,6 +200,7 @@ void Lexer::parseLine(std::string &line)
                 case '>':
                 case '=':
                     prev_tok = _tok.type;   
+                    multiplier *= (_tok.isTokenPlus() ? 1 : -1);
                     continue;
                     break;
                 default:
@@ -229,13 +232,14 @@ void Lexer::parseLine(std::string &line)
         {
             switch(prev_tok)
             {
+            // If unary operators were found
             case Token::TokenType::TOKEN_MINUS:
-                // Insert minus sign to string
-                cur_token_str.insert(0, "-");
             case Token::TokenType::TOKEN_PLUS:
-                // No need to change for + unary
+                if(multiplier == -1)
+                    cur_token_str.insert(0, "-");
                 // Reset context token
                 prev_tok = Token::TokenType::TOKEN_ILLEGAL;
+                multiplier = 1;
             case Token::TokenType::TOKEN_ILLEGAL:
             default:
                 break;
@@ -250,13 +254,14 @@ void Lexer::parseLine(std::string &line)
         {
             switch(prev_tok)
             {
+            // If unary operators were found
             case Token::TokenType::TOKEN_MINUS:
-                // Insert minus sign to string
-                cur_token_str.insert(0, "-");
             case Token::TokenType::TOKEN_PLUS:
-                // No need to change for + unary
+                if(multiplier == -1)
+                    cur_token_str.insert(0, "-");
                 // Reset context token
                 prev_tok = Token::TokenType::TOKEN_ILLEGAL;
+                multiplier = 1;
             case Token::TokenType::TOKEN_ILLEGAL:
             default:
                 break;
@@ -266,6 +271,24 @@ void Lexer::parseLine(std::string &line)
             Token _tok(type, cur_token_str, cur_line);
             toks_per_line.push(_tok);
             continue;
+        }
+        else if (prev_tok != Token::TokenType::TOKEN_ILLEGAL)
+        {
+            // Unary operator used on func or var, not int nor float
+            if(multiplier == -1)
+            {
+                std::string stupid = "-";
+                Token _tok(prev_tok, stupid, cur_line);
+                toks_per_line.push(_tok);
+            }
+            else if (multiplier == 1)
+            {
+                std::string stupid = "+";
+                Token _tok(prev_tok, stupid, cur_line);
+                toks_per_line.push(_tok);
+            }
+            prev_tok = Token::TokenType::TOKEN_ILLEGAL;
+            multiplier = 1;
         }
 
         // is the token keywork?
