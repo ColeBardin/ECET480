@@ -212,14 +212,35 @@ std::unique_ptr<Statement> Parser::parseAssnStatement()
         std::unique_ptr<Expression> iden =
             std::make_unique<LiteralExpression>(cur_token);
 
-	std::unique_ptr<Expression> expr;
+        std::unique_ptr<Expression> expr;
         if (!is_array)
         {
             advanceTokens();
-            assert(cur_token.isTokenEqual());
+            // Initialization with declaration
+            if(cur_token.isTokenEqual())
+            {
+                advanceTokens();
+                expr = parseExpression();
+            }
+            else
+            {
+                // No initialization, set to zero
+                assert(cur_token.isTokenSemicolon());
 
-            advanceTokens();
-            expr = parseExpression();
+                Token zero_tok;
+                if(type_token.isTokenDesInt())
+                {
+                    std::string zero_int_str = "0";
+                    zero_tok = Token(Token::TokenType::TOKEN_INT, zero_int_str);
+                }
+                else
+                {
+                    std::string zero_flt_str = "0.0";
+                    zero_tok = Token(Token::TokenType::TOKEN_FLOAT, zero_flt_str);
+                }
+
+                expr = std::make_unique<LiteralExpression>(zero_tok);
+            }
         }
         else
         {
