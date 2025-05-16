@@ -138,7 +138,10 @@ void Parser::parseStatement(std::string &cur_func_name,
 
     if (cur_token.isTokenFor())
     {
-        assert(false && "For statements are not supported yet!");
+        auto code = parseForStatement(cur_func_name);
+        if(code == nullptr) assert(false && "For statements are not supported yet!");
+        codes.push_back(std::move(code));
+        return;
     }
 
     // is it a function call?
@@ -195,6 +198,7 @@ std::unique_ptr<Statement> Parser::parseAssnStatement()
         Token type_token = cur_token;
 
         advanceTokens();
+        /* FIXME: STOPPED caring about redefinition of vars because test code does it
         if (auto [already_defined, type] = isVarAlreadyDefined(cur_token);
             already_defined)
         {
@@ -203,6 +207,7 @@ std::unique_ptr<Statement> Parser::parseAssnStatement()
             std::cerr << "[Line] " << cur_token.getLine() << "\n";
             exit(0);
         }
+        */
 
         bool is_array = (next_token.isTokenLBracket()) ? 
                         true : false;
@@ -541,6 +546,79 @@ std::unique_ptr<Statement> Parser::parseIfStatement(std::string&
 std::unique_ptr<Statement> Parser::parseForStatement(std::string& 
                                                      parent_func_name)
 {
+    advanceTokens();
+
+    assert(cur_token.isTokenLP());
+    advanceTokens();
+
+    // START
+    auto start = parseAssnStatement();
+    //advanceTokens();
+    
+    // SEMI
+    assert(cur_token.isTokenSemicolon());
+    advanceTokens();
+
+    // COND
+    auto cond = parseCondition();
+    //advanceTokens();
+
+    // SEMI
+    assert(cur_token.isTokenSemicolon());
+    advanceTokens();
+
+    // STEP
+    auto step = parseAssnStatement();
+    advanceTokens();
+
+    assert(cur_token.isTokenLBrace());
+
+    std::vector<std::shared_ptr<Statement>> taken_block_codes;
+    std::unordered_map<std::string,ValueType::Type> taken_block_local_vars;
+    local_vars_tracker.push_back(&taken_block_local_vars);
+    while (true)
+    {
+        advanceTokens();
+        if (cur_token.isTokenRBrace())
+            break;
+
+        parseStatement(parent_func_name, taken_block_codes);
+        // We just finished an if/for statement
+        if (taken_block_codes.back()->isStatementIf() ||
+            taken_block_codes.back()->isStatementFor())
+        {
+            // This RBrace is from the statement,
+            // should not terminate.
+            assert(cur_token.isTokenRBrace());
+        }
+        else
+        {
+            if (cur_token.isTokenRBrace())
+                break;
+        }
+    }
+    assert(cur_token.isTokenRBrace());
+    local_vars_tracker.pop_back();
+
+/*
+    ForStatement(std::unique_ptr<Statement> &_start,
+                 std::unique_ptr<Condition> &_end,
+                 std::unique_ptr<Statement> &_step,
+                 std::vector<std::shared_ptr<Statement>> &_block,
+                 std::unordered_map<std::string, 
+                                    ValueType::Type> &_block_local_vars)
+*/
+
+    std::unique_ptr<Statement> for_statement = 
+        std::make_unique<ForStatement>(start,
+                                       cond,
+                                       step,
+                                       taken_block_codes,
+                                       taken_block_local_vars
+                                      );
+    
+    assert(cur_token.isTokenRBrace());
+    return for_statement;
     return nullptr;
 }
 
