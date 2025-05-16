@@ -434,6 +434,7 @@ class Statement
         NORMAL_CALL_STATEMENT,
         IF_STATEMENT,
         FOR_STATEMENT,
+        WHILE_STATEMENT,
         ILLEGAL
     };
 
@@ -458,6 +459,7 @@ class Statement
     }
     bool isStatementIf() { return type == StatementType::IF_STATEMENT; }
     bool isStatementFor() { return type == StatementType::FOR_STATEMENT; }
+    bool isStatementWhile() { return type == StatementType::WHILE_STATEMENT; }
 };
 
 class AssnStatement : public Statement
@@ -758,8 +760,7 @@ class ForStatement : public Statement
                  std::unique_ptr<Condition> &_end,
                  std::unique_ptr<Statement> &_step,
                  std::vector<std::shared_ptr<Statement>> &_block,
-                 std::unordered_map<std::string, 
-                                    ValueType::Type> &_block_local_vars)
+                 std::unordered_map<std::string, ValueType::Type> &_block_local_vars)
     {
         type = StatementType::FOR_STATEMENT;
         
@@ -782,6 +783,41 @@ class ForStatement : public Statement
     auto getStart() { return start.get(); }
     auto getEnd() { return end.get(); }
     auto getStep() { return step.get(); }
+    auto &getBlock() { return block; }
+    auto getBlockVars() { return &block_local_vars; }
+
+    void printStatement() override;
+};
+
+class WhileStatement : public Statement
+{    
+  protected:
+    std::shared_ptr<Condition> cond;
+    std::vector<std::shared_ptr<Statement>> block;
+
+    std::unordered_map<std::string, ValueType::Type> block_local_vars;
+
+  public:
+
+    WhileStatement(std::unique_ptr<Condition> &_cond,
+                 std::vector<std::shared_ptr<Statement>> &_block,
+                 std::unordered_map<std::string, ValueType::Type> &_block_local_vars)
+    {
+        type = StatementType::WHILE_STATEMENT;
+        
+        cond = std::move(_cond);
+        block = std::move(_block);
+
+        block_local_vars = _block_local_vars;
+    }
+
+    WhileStatement(const WhileStatement &_while) 
+        : cond(std::move(_while.cond))
+        , block(std::move(_while.block))
+        , block_local_vars(_while.block_local_vars)
+    {}
+
+    auto getCond() { return cond.get(); }
     auto &getBlock() { return block; }
     auto getBlockVars() { return &block_local_vars; }
 
@@ -1063,6 +1099,7 @@ class Parser
     std::unique_ptr<Condition> parseCondition();
     std::unique_ptr<Statement> parseIfStatement(std::string&);
     std::unique_ptr<Statement> parseForStatement(std::string&);
+    std::unique_ptr<Statement> parseWhileStatement(std::string&);
 
     std::unique_ptr<Expression> parseExpression();
     std::unique_ptr<Expression> parseTerm(

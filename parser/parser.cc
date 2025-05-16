@@ -139,7 +139,13 @@ void Parser::parseStatement(std::string &cur_func_name,
     if (cur_token.isTokenFor())
     {
         auto code = parseForStatement(cur_func_name);
-        if(code == nullptr) assert(false && "For statements are not supported yet!");
+        codes.push_back(std::move(code));
+        return;
+    }
+
+    if (cur_token.isTokenWhile())
+    {
+        auto code = parseWhileStatement(cur_func_name);
         codes.push_back(std::move(code));
         return;
     }
@@ -585,7 +591,8 @@ std::unique_ptr<Statement> Parser::parseForStatement(std::string&
         parseStatement(parent_func_name, taken_block_codes);
         // We just finished an if/for statement
         if (taken_block_codes.back()->isStatementIf() ||
-            taken_block_codes.back()->isStatementFor())
+            taken_block_codes.back()->isStatementFor() ||
+            taken_block_codes.back()->isStatementWhile())
         {
             // This RBrace is from the statement,
             // should not terminate.
@@ -600,15 +607,6 @@ std::unique_ptr<Statement> Parser::parseForStatement(std::string&
     assert(cur_token.isTokenRBrace());
     local_vars_tracker.pop_back();
 
-/*
-    ForStatement(std::unique_ptr<Statement> &_start,
-                 std::unique_ptr<Condition> &_end,
-                 std::unique_ptr<Statement> &_step,
-                 std::vector<std::shared_ptr<Statement>> &_block,
-                 std::unordered_map<std::string, 
-                                    ValueType::Type> &_block_local_vars)
-*/
-
     std::unique_ptr<Statement> for_statement = 
         std::make_unique<ForStatement>(start,
                                        cond,
@@ -619,9 +617,59 @@ std::unique_ptr<Statement> Parser::parseForStatement(std::string&
     
     assert(cur_token.isTokenRBrace());
     return for_statement;
-    return nullptr;
 }
 
+std::unique_ptr<Statement> Parser::parseWhileStatement(std::string& 
+                                                     parent_func_name)
+{
+    advanceTokens();
+
+    assert(cur_token.isTokenLP());
+    advanceTokens();
+
+    // COND
+    auto cond = parseCondition();
+    advanceTokens();
+
+    assert(cur_token.isTokenLBrace());
+
+    std::vector<std::shared_ptr<Statement>> taken_block_codes;
+    std::unordered_map<std::string,ValueType::Type> taken_block_local_vars;
+    local_vars_tracker.push_back(&taken_block_local_vars);
+    while (true)
+    {
+        advanceTokens();
+        if (cur_token.isTokenRBrace())
+            break;
+
+        parseStatement(parent_func_name, taken_block_codes);
+        // We just finished an if/for statement
+        if (taken_block_codes.back()->isStatementIf() ||
+            taken_block_codes.back()->isStatementFor() ||
+            taken_block_codes.back()->isStatementWhile())
+        {
+            // This RBrace is from the statement,
+            // should not terminate.
+            assert(cur_token.isTokenRBrace());
+        }
+        else
+        {
+            if (cur_token.isTokenRBrace())
+                break;
+        }
+    }
+    assert(cur_token.isTokenRBrace());
+    local_vars_tracker.pop_back();
+
+    std::unique_ptr<Statement> while_statement = 
+        std::make_unique<WhileStatement>(cond,
+                                       taken_block_codes,
+                                       taken_block_local_vars
+                                      );
+    
+    assert(cur_token.isTokenRBrace());
+    return while_statement;
+}
 
 std::unique_ptr<Expression> Parser::parseExpression()
 {
@@ -980,6 +1028,24 @@ void ForStatement::printStatement()
     end->printStatement();
     std::cout << "  [Step]\n";
     step->printStatement();
+
+    std::cout << "  [Block]\n";
+    std::cout << "  {\n";
+    for (auto &code : block)
+    {
+        code->printStatement();
+    }
+    std::cout << "  }\n";
+    std::cout << "  }\n";
+
+}
+
+void WhileStatement::printStatement()
+{
+    std::cout << "  {\n";
+    std::cout << "  [While Statement] \n";
+    std::cout << "  [Condition]\n";
+    cond->printStatement();
 
     std::cout << "  [Block]\n";
     std::cout << "  {\n";
